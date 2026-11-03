@@ -69,6 +69,7 @@ public class GlazedAddon extends MeteorAddon {
         Modules.get().add(new AdminHud());
         Modules.get().add(new AntiVanish());
         Modules.get().add(new AutoRelog());
+        Modules.get().add(new BambooBlockDropper());
         Modules.get().add(new BackgroundSwitcher());
         Modules.get().add(new FakeBanScreen());
         Modules.get().add(new SwingSpeed());
