@@ -14,6 +14,8 @@ import net.minecraft.world.item.Items;
 
 public class BambooDropper extends Module {
     private static final Item TARGET = Items.BAMBOO_BLOCK;
+    private static final Item BUY_BUTTON = Items.LIME_STAINED_GLASS_PANE;
+    
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
@@ -27,7 +29,7 @@ public class BambooDropper extends Module {
 
     private final Setting<Integer> clicksPerBuy = sgGeneral.add(new IntSetting.Builder()
         .name("clicks-per-buy")
-        .description("How many times to click the bamboo block each pass.")
+        .description("How many times to click the buy button each pass.")
         .defaultValue(8)
         .min(1)
         .sliderMax(32)
@@ -36,7 +38,7 @@ public class BambooDropper extends Module {
 
     private final Setting<Integer> reopenDelay = sgGeneral.add(new IntSetting.Builder()
         .name("reopen-delay")
-        .description("Ticks to wait after sending /shop before looking for the menu.")
+        .description("Ticks to wait after sending /shops before looking for the menu.")
         .defaultValue(20)
         .min(1)
         .sliderMax(60)
@@ -78,19 +80,25 @@ public class BambooDropper extends Module {
         ChestMenu handler = GlazedShop.openContainer();
 
         if (handler == null) {
-            ChatUtils.sendPlayerMsg("/shop");
+            ChatUtils.sendPlayerMsg("/shops");
             delayCounter = reopenDelay.get();
             return;
         }
 
-        int targetSlot = GlazedShop.findItemSlot(handler, TARGET);
+        // Cari slot Lime Stained Glass Pane sebagai tombol buy
+        int buySlot = GlazedShop.findItemSlot(handler, BUY_BUTTON);
 
-        if (targetSlot < 0) {
+        // Fallback ke item target jika lime pane tidak ditemukan di menu saat itu
+        if (buySlot < 0) {
+            buySlot = GlazedShop.findItemSlot(handler, TARGET);
+        }
+
+        if (buySlot < 0) {
             delayCounter = Math.max(1, delay.get());
             return;
         }
 
-        GlazedShop.spamClick(handler, targetSlot, clicksPerBuy.get());
+        GlazedShop.spamClick(handler, buySlot, clicksPerBuy.get());
         delayCounter = Math.max(1, delay.get());
 
         if (dropBought.get()) dropBamboo(handler);
