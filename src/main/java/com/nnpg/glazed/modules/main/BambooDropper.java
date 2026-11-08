@@ -17,39 +17,47 @@ public class BambooDropper extends Module {
     
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // Fitur baru: Setting untuk mengedit command shop tujuan secara fleksibel
     private final Setting<String> shopCommand = sgGeneral.add(new StringSetting.Builder()
         .name("shop-command")
-        .description("Command used to open the shop menu (e.g. /shops, /shop).")
+        .description("Command used to open the shop menu.")
         .defaultValue("/shops")
         .build()
     );
 
-    // Delay diperlambat dan diset default aman agar lolos anti-cheat Kratos
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
         .name("delay")
-        .description("Delay between actions in ticks (higher = safer).")
-        .defaultValue(3)
-        .min(1)
+        .description("Delay between actions in ticks.")
+        .defaultValue(1)
+        .min(0)
         .max(20)
         .build()
     );
 
-    // Dibatasi kecil agar tidak terdeteksi FastClick / AutoClicker
+    // Rentang diperluas: min 0 (paling kenceng/brutal) sampai 20 (paling lambat/aman)
+    private final Setting<Integer> dropDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("drop-delay")
+        .description("Drop delay in ticks (0 = instant/fastest, 20 = slowest).")
+        .defaultValue(2)
+        .min(0)
+        .max(20)
+        .sliderMax(20)
+        .build()
+    );
+
     private final Setting<Integer> clicksPerBuy = sgGeneral.add(new IntSetting.Builder()
         .name("clicks-per-buy")
         .description("How many times to click the buy button each pass.")
-        .defaultValue(2)
+        .defaultValue(8)
         .min(1)
-        .sliderMax(6)
+        .sliderMax(32)
         .build()
     );
 
     private final Setting<Integer> reopenDelay = sgGeneral.add(new IntSetting.Builder()
         .name("reopen-delay")
         .description("Ticks to wait after sending the shop command.")
-        .defaultValue(20)
-        .min(5)
+        .defaultValue(15)
+        .min(1)
         .sliderMax(60)
         .build()
     );
@@ -66,7 +74,7 @@ public class BambooDropper extends Module {
     private int dropCooldown = 0;
 
     public BambooDropper() {
-        super(GlazedAddon.CATEGORY, "bamboo-dropper", "Automatically buys bamboo blocks from the shop and drops full stacks safely.");
+        super(GlazedAddon.CATEGORY, "bamboo-dropper", "Automatically buys and drops bamboo blocks with adjustable stress test speeds.");
     }
 
     @Override
@@ -112,33 +120,32 @@ public class BambooDropper extends Module {
 
         waitingForMenu = false;
 
-        // Mencari slot item target (BAMBOO_BLOCK) langsung
         int buySlot = GlazedShop.findItemSlot(handler, TARGET);
 
         if (buySlot < 0) {
-            delayCounter = Math.max(2, delay.get());
+            delayCounter = Math.max(0, delay.get());
             return;
         }
 
-        // Klik tombol beli dengan aman (terhindar dari deteksi auto-clicker Kratos)
         GlazedShop.spamClick(handler, buySlot, clicksPerBuy.get());
-        delayCounter = Math.max(3, delay.get());
+        delayCounter = Math.max(0, delay.get());
 
         if (dropBought.get()) {
-            dropBambooStackSafely(handler);
+            dropBambooStackStressTest(handler);
         }
     }
 
-    // Fungsi drop 1 stack penuh secara bertahap agar aman dari anti-cheat
-    private void dropBambooStackSafely(ChestMenu handler) {
+    private void dropBambooStackStressTest(ChestMenu handler) {
         int containerSlots = GlazedShop.containerSlotCount(handler);
         for (int slot = containerSlots; slot < handler.slots.size(); slot++) {
             if (handler.getSlot(slot).getItem().isEmpty()) continue;
             if (!handler.getSlot(slot).getItem().is(TARGET)) continue;
             
-            // Parameter button = 1 dengan ClickType.THROW melemparkan 1 stack penuh dari slot tersebut
             mc.gameMode.handleInventoryMouseClick(handler.containerId, slot, 1, ClickType.THROW, mc.player);
-            dropCooldown = 3; // Jeda 3 tick antar drop stack agar terlihat natural di mata Kratos
+            
+            // Kalau diset 0, dia bakal nge-drop tanpa jeda tick (paling kenceng/brutal)
+            // Kalau diset tinggi (misal 10-20), jedanya bakal kerasa lambat banget
+            dropCooldown = dropDelay.get();
             break;
         }
     }
