@@ -27,27 +27,16 @@ public class BambooDropper extends Module {
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
         .name("delay")
         .description("Delay between actions in ticks.")
-        .defaultValue(1)
+        .defaultValue(0)
         .min(0)
         .max(20)
-        .build()
-    );
-
-    // Rentang diperluas: min 0 (paling kenceng/brutal) sampai 20 (paling lambat/aman)
-    private final Setting<Integer> dropDelay = sgGeneral.add(new IntSetting.Builder()
-        .name("drop-delay")
-        .description("Drop delay in ticks (0 = instant/fastest, 20 = slowest).")
-        .defaultValue(2)
-        .min(0)
-        .max(20)
-        .sliderMax(20)
         .build()
     );
 
     private final Setting<Integer> clicksPerBuy = sgGeneral.add(new IntSetting.Builder()
         .name("clicks-per-buy")
         .description("How many times to click the buy button each pass.")
-        .defaultValue(8)
+        .defaultValue(16)
         .min(1)
         .sliderMax(32)
         .build()
@@ -56,7 +45,7 @@ public class BambooDropper extends Module {
     private final Setting<Integer> reopenDelay = sgGeneral.add(new IntSetting.Builder()
         .name("reopen-delay")
         .description("Ticks to wait after sending the shop command.")
-        .defaultValue(15)
+        .defaultValue(10)
         .min(1)
         .sliderMax(60)
         .build()
@@ -64,31 +53,28 @@ public class BambooDropper extends Module {
 
     private final Setting<Boolean> dropBought = sgGeneral.add(new BoolSetting.Builder()
         .name("drop-bought")
-        .description("Throw the bamboo blocks on the floor automatically as a full stack.")
+        .description("Throw all bamboo blocks instantly.")
         .defaultValue(true)
         .build()
     );
 
     private int delayCounter = 0;
     private boolean waitingForMenu = false;
-    private int dropCooldown = 0;
 
     public BambooDropper() {
-        super(GlazedAddon.CATEGORY, "bamboo-dropper", "Automatically buys and drops bamboo blocks with adjustable stress test speeds.");
+        super(GlazedAddon.CATEGORY, "bamboo-dropper", "Automatically buys and drops bamboo blocks instantly at maximum speed.");
     }
 
     @Override
     public void onActivate() {
         delayCounter = 0;
         waitingForMenu = false;
-        dropCooldown = 0;
     }
 
     @Override
     public void onDeactivate() {
         delayCounter = 0;
         waitingForMenu = false;
-        dropCooldown = 0;
     }
 
     @EventHandler
@@ -97,11 +83,6 @@ public class BambooDropper extends Module {
 
         if (delayCounter > 0) {
             delayCounter--;
-            return;
-        }
-
-        if (dropCooldown > 0) {
-            dropCooldown--;
             return;
         }
 
@@ -123,30 +104,28 @@ public class BambooDropper extends Module {
         int buySlot = GlazedShop.findItemSlot(handler, TARGET);
 
         if (buySlot < 0) {
-            delayCounter = Math.max(0, delay.get());
+            delayCounter = delay.get();
             return;
         }
 
+        // Spam klik beli secepat mungkin
         GlazedShop.spamClick(handler, buySlot, clicksPerBuy.get());
-        delayCounter = Math.max(0, delay.get());
+        delayCounter = delay.get();
 
         if (dropBought.get()) {
-            dropBambooStackStressTest(handler);
+            dropAllBambooInstantly(handler);
         }
     }
 
-    private void dropBambooStackStressTest(ChestMenu handler) {
+    // Drop SEMUA slot bamboo sekaligus dalam satu tick (tanpa jeda/tanpa cooldown)
+    private void dropAllBambooInstantly(ChestMenu handler) {
         int containerSlots = GlazedShop.containerSlotCount(handler);
         for (int slot = containerSlots; slot < handler.slots.size(); slot++) {
             if (handler.getSlot(slot).getItem().isEmpty()) continue;
             if (!handler.getSlot(slot).getItem().is(TARGET)) continue;
             
+            // Eksekusi buang seluruh isi slot tanpa nunggu tick berikutnya
             mc.gameMode.handleInventoryMouseClick(handler.containerId, slot, 1, ClickType.THROW, mc.player);
-            
-            // Kalau diset 0, dia bakal nge-drop tanpa jeda tick (paling kenceng/brutal)
-            // Kalau diset tinggi (misal 10-20), jedanya bakal kerasa lambat banget
-            dropCooldown = dropDelay.get();
-            break;
         }
     }
 }
