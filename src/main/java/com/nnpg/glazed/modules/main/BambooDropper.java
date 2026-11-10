@@ -20,14 +20,14 @@ public class BambooDropper extends Module {
     private final Setting<String> shopCommand = sgGeneral.add(new StringSetting.Builder()
         .name("shop-command")
         .description("Command used to open the shop menu.")
-        .defaultValue("/shops")
+        .defaultValue("/shop")
         .build()
     );
 
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
         .name("delay")
         .description("Delay between actions in ticks.")
-        .defaultValue(0)
+        .defaultValue(1)
         .min(0)
         .max(20)
         .build()
@@ -35,8 +35,8 @@ public class BambooDropper extends Module {
 
     private final Setting<Integer> clicksPerBuy = sgGeneral.add(new IntSetting.Builder()
         .name("clicks-per-buy")
-        .description("How many times to click the buy button each pass.")
-        .defaultValue(16)
+        .description("How many times to click the bamboo each pass.")
+        .defaultValue(8)
         .min(1)
         .sliderMax(32)
         .build()
@@ -44,8 +44,8 @@ public class BambooDropper extends Module {
 
     private final Setting<Integer> reopenDelay = sgGeneral.add(new IntSetting.Builder()
         .name("reopen-delay")
-        .description("Ticks to wait after sending the shop command.")
-        .defaultValue(10)
+        .description("Ticks to wait after sending /shop before looking for the menu.")
+        .defaultValue(20)
         .min(1)
         .sliderMax(60)
         .build()
@@ -53,28 +53,25 @@ public class BambooDropper extends Module {
 
     private final Setting<Boolean> dropBought = sgGeneral.add(new BoolSetting.Builder()
         .name("drop-bought")
-        .description("Throw all bamboo blocks instantly.")
+        .description("Throw the bamboo blocks on the floor after buying them.")
         .defaultValue(true)
         .build()
     );
 
     private int delayCounter = 0;
-    private boolean waitingForMenu = false;
 
     public BambooDropper() {
-        super(GlazedAddon.CATEGORY, "bamboo-dropper", "Automatically buys and drops bamboo blocks instantly at maximum speed.");
+        super(GlazedAddon.CATEGORY, "bamboo-dropper", "Automatically buys bamboo blocks from shop and drops them.");
     }
 
     @Override
     public void onActivate() {
         delayCounter = 0;
-        waitingForMenu = false;
     }
 
     @Override
     public void onDeactivate() {
         delayCounter = 0;
-        waitingForMenu = false;
     }
 
     @EventHandler
@@ -88,43 +85,37 @@ public class BambooDropper extends Module {
 
         ChestMenu handler = GlazedShop.openContainer();
 
+        // one chest now, nothing to navigate
         if (handler == null) {
-            if (!waitingForMenu) {
-                String cmd = shopCommand.get();
-                if (!cmd.startsWith("/")) cmd = "/" + cmd;
-                ChatUtils.sendPlayerMsg(cmd);
-                waitingForMenu = true;
-                delayCounter = reopenDelay.get();
-            }
+            String cmd = shopCommand.get();
+            if (!cmd.startsWith("/")) cmd = "/" + cmd;
+            ChatUtils.sendPlayerMsg(cmd);
+            delayCounter = reopenDelay.get();
             return;
         }
 
-        waitingForMenu = false;
+        int targetSlot = GlazedShop.findItemSlot(handler, TARGET);
 
-        int buySlot = GlazedShop.findItemSlot(handler, TARGET);
-
-        if (buySlot < 0) {
-            delayCounter = delay.get();
+        if (targetSlot < 0) {
+            // menu open but empty, or its not the shop
+            delayCounter = Math.max(1, delay.get());
             return;
         }
 
-        // Spam klik beli secepat mungkin
-        GlazedShop.spamClick(handler, buySlot, clicksPerBuy.get());
-        delayCounter = delay.get();
+        GlazedShop.spamClick(handler, targetSlot, clicksPerBuy.get());
+        delayCounter = Math.max(1, delay.get());
 
-        if (dropBought.get()) {
-            dropAllBambooInstantly(handler);
-        }
+        if (dropBought.get()) dropBamboo(handler);
     }
 
-    // Drop SEMUA slot bamboo sekaligus dalam satu tick (tanpa jeda/tanpa cooldown)
-    private void dropAllBambooInstantly(ChestMenu handler) {
+    private void dropBamboo(ChestMenu handler) {
         int containerSlots = GlazedShop.containerSlotCount(handler);
+
         for (int slot = containerSlots; slot < handler.slots.size(); slot++) {
             if (handler.getSlot(slot).getItem().isEmpty()) continue;
             if (!handler.getSlot(slot).getItem().is(TARGET)) continue;
-            
-            // Eksekusi buang seluruh isi slot tanpa nunggu tick berikutnya
+
+            // button 1 = drop the whole stack
             mc.gameMode.handleInventoryMouseClick(handler.containerId, slot, 1, ClickType.THROW, mc.player);
         }
     }
